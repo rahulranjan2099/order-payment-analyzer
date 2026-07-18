@@ -1,22 +1,27 @@
 import express from "express";
 import dotenv from "dotenv";
+import cors from "cors";
 import connectDB, { prisma } from "./config/db";
 import ordersRouter from "./routes/orders";
 import paymentsRouter from "./routes/payments";
+import authRouter from "./routes/auth";
+import { errorHandler } from "./middleware/errorHandler";
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
 
+app.use(cors());
 app.use(express.json());
-
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.use("/api/auth", authRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/payments", paymentsRouter);
+app.use(errorHandler);
 
 const startServer = async () => {
   await connectDB();
