@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+
+  uploads Upload[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Upload {
+  id String @id @default(cuid())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ordersFileName   String?
+  paymentsFileName String?
+
+  status UploadStatus @default(PROCESSING)
+
+  orders          Order[]
+  payments        Payment[]
+  reconciliations Reconciliation[]
+
+  createdAt DateTime @default(now())
+}
+
+model Order {
+
+  id String @id @default(cuid())
+
+  uploadId String
+  upload Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  orderId String
+
+  orderDate DateTime
+
+  customerEmail String
+
+  currency String
+
+  grossAmount Decimal @db.Decimal(10,2)
+
+  discount Decimal @db.Decimal(10,2)
+
+  netAmount Decimal @db.Decimal(10,2)
+
+  status String
+
+  reconciliations Reconciliation[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([uploadId, orderId])
+
+  @@index([orderId])
+
+}
+
+model Payment {
+
+  id String @id @default(cuid())
+
+  uploadId String
+  upload Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  transactionRef String
+
+  orderReference String?
+
+  processedAt DateTime
+
+  currency String
+
+  amount Decimal @db.Decimal(10,2)
+
+  fee Decimal @db.Decimal(10,2)
+
+  netSettled Decimal @db.Decimal(10,2)
+
+  type String
+
+  status String
+
+  reconciliations Reconciliation[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([uploadId, transactionRef])
+
+  @@index([orderReference])
+
+}
+
+model Reconciliation {
+
+  id String @id @default(cuid())
+
+  uploadId String
+  upload Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  orderDbId String?
+  order Order? @relation(fields: [orderDbId], references: [id])
+
+  paymentDbId String?
+  payment Payment? @relation(fields: [paymentDbId], references: [id])
+
+  discrepancyType DiscrepancyType
+
+  severity Severity
+
+  amountDifference Decimal? @db.Decimal(10,2)
+
+  explanation Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([discrepancyType])
+}
+
+enum UploadStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DiscrepancyType {
+
+  MATCHED
+
+  MISSING_PAYMENT
+
+  ORPHAN_PAYMENT
+
+  AMOUNT_MISMATCH
+
+  STATUS_MISMATCH
+
+  DUPLICATE_PAYMENT
+
+  DUPLICATE_ORDER
+
+  CURRENCY_MISMATCH
+
+}
