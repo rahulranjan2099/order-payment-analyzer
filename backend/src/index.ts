@@ -5,6 +5,7 @@ import connectDB, { prisma } from "./config/db";
 import ordersRouter from "./routes/orders";
 import paymentsRouter from "./routes/payments";
 import authRouter from "./routes/auth";
+import uploadsRouter from "./routes/uploads";
 import { errorHandler } from "./middleware/errorHandler";
 
 dotenv.config();
@@ -21,6 +22,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/payments", paymentsRouter);
+app.use("/api/uploads", uploadsRouter);
 app.use(errorHandler);
 
 const startServer = async () => {

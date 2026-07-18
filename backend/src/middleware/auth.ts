@@ -12,7 +12,7 @@ interface JwtPayload {
 
 export const authenticate = (
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ): void => {
   const authHeader = req.headers.authorization;
