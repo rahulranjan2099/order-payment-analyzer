@@ -27,6 +27,7 @@ app.use("/api/payments", paymentsRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/reconciliations", reconciliationsRouter);
+app.use("/api/reconciliation", reconciliationsRouter);
 app.use(errorHandler);
 
 const startServer = async () => {

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { DiscrepancyType, Prisma, Severity } from "@prisma/client";
+import { explanationTool } from "../ai/llm.tool";
 import { prisma } from "../config/db";
 
 type Insight = {
@@ -179,5 +180,47 @@ export const getReconciliations = async (req: Request, res: Response): Promise<v
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch reconciliations" });
+  }
+};
+
+export const explainReconciliation = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const uploadId = req.params.uploadId;
+    const upload = await prisma.upload.findFirst({
+      where: {
+        id: uploadId,
+        userId: res.locals.userId as string,
+      },
+      select: { id: true },
+    });
+
+    if (!upload) {
+      res.status(404).json({ error: "Upload not found" });
+      return;
+    }
+
+    const body = req.body as {
+      breakdown?: Array<{ type: string; count: number; valueAtRisk: number }>;
+      metrics?: {
+        totalOrders?: number;
+        totalPayments?: number;
+        moneyAtRisk?: number;
+      };
+    };
+
+    const explanation = await explanationTool({
+      breakdown: body.breakdown,
+      metrics: body.metrics,
+      existingExplanation: body,
+    });
+
+    res.json({
+      uploadId: upload.id,
+      explanation,
+    });
+  } catch (error) {
+    console.error(error);
+    const message = error instanceof Error ? error.message : "Failed to explain reconciliation";
+    res.status(500).json({ error: message });
   }
 };

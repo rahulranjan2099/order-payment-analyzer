@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BrandLogo } from "../components/BrandLogo";
@@ -77,12 +77,16 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const [selectedUploadId, setSelectedUploadId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isReconciling, setIsReconciling] = useState(false);
+  const [isExplainingBreakdown, setIsExplainingBreakdown] = useState(false);
+  const [breakdownExplanation, setBreakdownExplanation] = useState<string>("");
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"All" | DiscrepancyType>("All");
   const [activeType, setActiveType] = useState<"All" | DiscrepancyType>("All");
+  const dashboardRequestRef = useRef(0);
 
   const loadDashboard = async (uploadId = selectedUploadId) => {
+    const requestId = ++dashboardRequestRef.current;
     setIsLoading(true);
     setError("");
     try {
@@ -96,15 +100,22 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
         return;
       }
       if (!response.ok) throw new Error(await readError(response));
-      setDashboard((await response.json()) as DashboardData);
+      const data = (await response.json()) as DashboardData;
+      if (dashboardRequestRef.current === requestId) {
+        setDashboard(data);
+      }
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The dashboard could not be loaded.",
-      );
+      if (dashboardRequestRef.current === requestId) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "The dashboard could not be loaded.",
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (dashboardRequestRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -139,8 +150,55 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
     }
   };
 
+  const explainBreakdown = async () => {
+    const uploadId = selectedUploadId || dashboard?.upload?.id;
+    if (!uploadId || breakdown.length === 0) return;
+    setIsExplainingBreakdown(true);
+    setError("");
+    setBreakdownExplanation("");
+    try {
+      const response = await fetch(`${API_URL}/reconciliations/${encodeURIComponent(uploadId)}/explain`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          breakdown,
+          metrics: dashboard?.metrics,
+        }),
+      });
+      if (response.status === 401) {
+        onSignOut();
+        navigate("/sign-in", { replace: true });
+        return;
+      }
+      if (!response.ok) throw new Error(await readError(response));
+      const data = (await response.json()) as { explanation?: { summary?: string; possibleCause?: string; recommendedAction?: string; severity?: string } };
+      const explanation = data.explanation;
+      setBreakdownExplanation(
+        [
+          explanation?.summary,
+          explanation?.possibleCause,
+          explanation?.recommendedAction,
+        ]
+          .filter(Boolean)
+          .join("\n\n") || "No explanation was returned.",
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The explanation could not be generated.",
+      );
+    } finally {
+      setIsExplainingBreakdown(false);
+    }
+  };
+
   useEffect(() => {
     let isCurrent = true;
+    const requestId = ++dashboardRequestRef.current;
     void fetch(`${API_URL}/dashboard`, {
       headers: { Authorization: `Bearer ${session.token}` },
     })
@@ -154,18 +212,23 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
         return response.json() as Promise<DashboardData>;
       })
       .then((data) => {
-        if (isCurrent && data) setDashboard(data);
+        if (isCurrent && requestId === dashboardRequestRef.current && data) {
+          setDashboard(data);
+        }
       })
       .catch((caught: unknown) => {
-        if (isCurrent)
+        if (isCurrent && requestId === dashboardRequestRef.current) {
           setError(
             caught instanceof Error
               ? caught.message
               : "The dashboard could not be loaded.",
           );
+        }
       })
       .finally(() => {
-        if (isCurrent) setIsLoading(false);
+        if (isCurrent && requestId === dashboardRequestRef.current) {
+          setIsLoading(false);
+        }
       });
     void fetch(`${API_URL}/uploads`, {
       headers: { Authorization: `Bearer ${session.token}` },
@@ -357,11 +420,7 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
                 </div>
                 {breakdown.length > 0 ? (
                   <>
-                    <div
-                      className="chart-list"
-                      role="img"
-                      aria-label="Bar chart showing discrepancy counts by type"
-                    >
+                    <div className="chart-list" role="img" aria-label="Bar chart showing discrepancy counts by type">
                       {breakdown.map((item) => (
                         <button
                           className={`chart-row ${activeType === item.type ? "selected" : ""}`}
@@ -391,9 +450,18 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
                         </button>
                       ))}
                     </div>
-                    <p className="chart-note">
-                      Select a category to focus the discrepancy table.
-                    </p>
+                    <div className="chart-note" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "flex-start" }}>
+                      <span>Select a category to focus the discrepancy table.</span>
+                      <button className="text-button" onClick={() => void explainBreakdown()} disabled={isExplainingBreakdown || breakdown.length === 0}>
+                        {isExplainingBreakdown ? "Generating explanation…" : "Generate explanation"}
+                      </button>
+                    </div>
+                    {breakdownExplanation && (
+                      <div className="panel" style={{ marginTop: "0.75rem", padding: "0.9rem", background: "#f8fafc", borderRadius: "0.75rem" }}>
+                        <strong>LLM explanation</strong>
+                        <p style={{ whiteSpace: "pre-wrap", marginTop: "0.35rem" }}>{breakdownExplanation}</p>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <p className="chart-note dashboard-empty-copy">
