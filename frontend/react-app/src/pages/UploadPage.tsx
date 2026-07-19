@@ -36,7 +36,7 @@ export function UploadPage({ session, onSignOut }: UploadPageProps) {
   }
 
   return <main className="app-shell">
-    <header className="topbar"><BrandLogo dark /><div className="account"><span>{session.user.name || session.user.email}</span><button onClick={onSignOut}>Sign out</button></div></header>
+    <header className="topbar"><BrandLogo dark /><div className="account"><nav className="topnav"><a href="/dashboard">Dashboard</a><a className="active" href="/upload">Import</a></nav><span>{session.user.name || session.user.email}</span><button onClick={onSignOut}>Sign out</button></div></header>
     <section className="workspace">
       <div className="page-intro"><p className="eyebrow">Data import</p><h1>Upload your CSV exports</h1><p>Both order and payment files are required for each import. Files are processed securely and must be CSV files under 10 MB.</p></div>
       <form className="upload-card" onSubmit={upload}>

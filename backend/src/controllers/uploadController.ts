@@ -7,6 +7,26 @@ import { AppError } from "../utils/AppError";
 type CsvRow = Record<string, string>;
 type UploadedCsv = { originalname: string; buffer: Buffer };
 
+export const getUploads = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const uploads = await prisma.upload.findMany({
+      where: { userId: res.locals.userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        ordersFileName: true,
+        paymentsFileName: true,
+        _count: { select: { orders: true, payments: true, reconciliations: true } },
+      },
+    });
+    res.json(uploads);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const ORDER_COLUMNS = [
   "order_id",
   "order_date",

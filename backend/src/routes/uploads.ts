@@ -1,6 +1,6 @@
 import express, { Request } from "express";
 import multer from "multer";
-import { importCsvFiles } from "../controllers/uploadController";
+import { getUploads, importCsvFiles } from "../controllers/uploadController";
 import { authenticate } from "../middleware/auth";
 import { AppError } from "../utils/AppError";
 
@@ -18,6 +18,8 @@ const csvUpload = multer({
     callback(isCsv ? null : new AppError("Only CSV files are accepted", 400), isCsv);
   },
 });
+
+router.get("/", authenticate, getUploads);
 
 router.post(
   "/import",

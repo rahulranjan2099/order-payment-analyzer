@@ -6,6 +6,8 @@ import ordersRouter from "./routes/orders";
 import paymentsRouter from "./routes/payments";
 import authRouter from "./routes/auth";
 import uploadsRouter from "./routes/uploads";
+import dashboardRouter from "./routes/dashboard";
+import reconciliationsRouter from "./routes/reconciliations";
 import { errorHandler } from "./middleware/errorHandler";
 
 dotenv.config();
@@ -23,6 +25,8 @@ app.use("/api/auth", authRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/uploads", uploadsRouter);
+app.use("/api/dashboard", dashboardRouter);
+app.use("/api/reconciliations", reconciliationsRouter);
 app.use(errorHandler);
 
 const startServer = async () => {
