@@ -19,10 +19,10 @@ export function UploadPage({ session, onSignOut }: UploadPageProps) {
   const upload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(''); setResult(null)
-    if (!ordersFile && !paymentsFile) { setError('Choose at least one CSV file to import.'); return }
+    if (!ordersFile || !paymentsFile) { setError('Both the orders CSV and payments CSV are required.'); return }
     const formData = new FormData()
-    if (ordersFile) formData.append('ordersFile', ordersFile)
-    if (paymentsFile) formData.append('paymentsFile', paymentsFile)
+    formData.append('ordersFile', ordersFile)
+    formData.append('paymentsFile', paymentsFile)
     setIsUploading(true)
     try {
       const response = await fetch(`${API_URL}/uploads/import`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` }, body: formData })
@@ -38,9 +38,9 @@ export function UploadPage({ session, onSignOut }: UploadPageProps) {
   return <main className="app-shell">
     <header className="topbar"><BrandLogo dark /><div className="account"><span>{session.user.name || session.user.email}</span><button onClick={onSignOut}>Sign out</button></div></header>
     <section className="workspace">
-      <div className="page-intro"><p className="eyebrow">Data import</p><h1>Upload your CSV exports</h1><p>Import order and payment files together or one at a time. Files are processed securely and must be CSV files under 10 MB.</p></div>
+      <div className="page-intro"><p className="eyebrow">Data import</p><h1>Upload your CSV exports</h1><p>Both order and payment files are required for each import. Files are processed securely and must be CSV files under 10 MB.</p></div>
       <form className="upload-card" onSubmit={upload}>
-        <div className="upload-card-header"><div><h2>New import</h2><p>Select the exports you want to reconcile.</p></div><span className="csv-chip">CSV only</span></div>
+        <div className="upload-card-header"><div><h2>New import</h2><p>Select both exports to reconcile.</p></div><span className="csv-chip">CSV only</span></div>
         <div className="file-grid"><FilePicker label="Orders export" description="Order ID, dates, amounts, and status" file={ordersFile} onChange={setOrdersFile} /><FilePicker label="Payments export" description="Transaction references and settlements" file={paymentsFile} onChange={setPaymentsFile} /></div>
         {error && <p className="form-error" role="alert">{error}</p>}
         {result && <div className="success-message" role="status"><span>✓</span><div><strong>Import completed</strong><p>{result.ordersImported} orders and {result.paymentsImported} payments were imported.</p></div></div>}

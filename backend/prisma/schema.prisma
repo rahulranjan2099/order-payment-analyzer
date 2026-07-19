@@ -64,8 +64,6 @@ model Order {
 
   createdAt DateTime @default(now())
 
-  @@unique([uploadId, orderId])
-
   @@index([orderId])
 
 }
@@ -81,7 +79,7 @@ model Payment {
 
   orderReference String?
 
-  processedAt DateTime
+  processedAt DateTime?
 
   currency String
 

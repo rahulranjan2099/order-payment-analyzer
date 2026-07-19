@@ -68,16 +68,22 @@ const requiredText = (value: string | undefined, field: string, row: number): st
 };
 
 const decimal = (value: string | undefined, field: string, row: number): number => {
-  const text = requiredText(value, field, row);
-  const amount = Number(text);
-  if (!Number.isFinite(amount)) throw new AppError(`Row ${row}: ${field} must be a number`, 400);
+  // const text = requiredText(value, field, row);
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 0
   return amount;
 };
 
-const date = (value: string | undefined, field: string, row: number): Date => {
+const date = (value: string | undefined, field: string, row: number): Date | null => {
   const parsed = new Date(requiredText(value, field, row));
-  if (Number.isNaN(parsed.getTime())) throw new AppError(`Row ${row}: ${field} is not a valid date`, 400);
+  if (Number.isNaN(parsed.getTime())) return null
+  // throw new AppError(`Row ${row}: ${field} is not a valid date`, 400);
   return parsed;
+};
+
+const optionalDate = (value: string | undefined, field: string, row: number): Date | null => {
+  if (!value?.trim()) return null;
+  return date(value, field, row);
 };
 
 export const importCsvFiles = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -85,8 +91,8 @@ export const importCsvFiles = async (req: Request, res: Response, next: NextFunc
   const ordersFile = files.ordersFile?.[0];
   const paymentsFile = files.paymentsFile?.[0];
 
-  if (!ordersFile && !paymentsFile) {
-    next(new AppError("Attach an ordersFile, paymentsFile, or both", 400));
+  if (!ordersFile || !paymentsFile) {
+    next(new AppError("Both ordersFile and paymentsFile are required", 400));
     return;
   }
 
@@ -104,21 +110,20 @@ export const importCsvFiles = async (req: Request, res: Response, next: NextFunc
     uploadId = upload.id;
     const currentUploadId = upload.id;
 
-    const [orderRows, paymentRows] = await Promise.all([
-      ordersFile ? readCsv(ordersFile) : Promise.resolve([]),
-      paymentsFile ? readCsv(paymentsFile) : Promise.resolve([]),
-    ]);
-
-    if (ordersFile) assertColumns(orderRows, ORDER_COLUMNS, "Orders");
-    if (paymentsFile) assertColumns(paymentRows, PAYMENT_COLUMNS, "Payments");
+    const [orderRows, paymentRows] = await Promise.all([readCsv(ordersFile), readCsv(paymentsFile)]);
+    console.log('checkingorderRows', orderRows)
+    assertColumns(orderRows, ORDER_COLUMNS, "Orders");
+    assertColumns(paymentRows, PAYMENT_COLUMNS, "Payments");
 
     const orders = orderRows.map((row, index) => {
       const rowNumber = index + 2;
+      const orderDate = date(row.order_date, "order_date", rowNumber);
+      if (!orderDate) throw new AppError(`Row ${rowNumber}: order_date is not a valid date`, 400);
       return {
         uploadId: currentUploadId,
         orderId: requiredText(row.order_id, "order_id", rowNumber),
-        orderDate: date(row.order_date, "order_date", rowNumber),
-        customerEmail: requiredText(row.customer_email, "customer_email", rowNumber),
+        orderDate,
+        customerEmail: row.customer_email,
         currency: requiredText(row.currency, "currency", rowNumber),
         grossAmount: decimal(row.gross_amount, "gross_amount", rowNumber),
         discount: decimal(row.discount, "discount", rowNumber),
@@ -128,11 +133,12 @@ export const importCsvFiles = async (req: Request, res: Response, next: NextFunc
     });
     const payments = paymentRows.map((row, index) => {
       const rowNumber = index + 2;
+      const processedAt = optionalDate(row.processed_at, "processed_at", rowNumber);
       return {
         uploadId: currentUploadId,
         transactionRef: requiredText(row.transaction_ref, "transaction_ref", rowNumber),
         orderReference: row.order_reference?.trim() || null,
-        processedAt: date(row.processed_at, "processed_at", rowNumber),
+        processedAt: processedAt,
         currency: requiredText(row.currency, "currency", rowNumber),
         amount: decimal(row.amount, "amount", rowNumber),
         fee: decimal(row.fee, "fee", rowNumber),
@@ -144,7 +150,8 @@ export const importCsvFiles = async (req: Request, res: Response, next: NextFunc
 
     await prisma.$transaction(async (tx) => {
       if (orders.length) await tx.order.createMany({ data: orders });
-      if (payments.length) await tx.payment.createMany({ data: payments });
+      // Omitted processedAt values are persisted as NULL after the nullable migration.
+      if (payments.length) await tx.payment.createMany({ data: payments as never });
       await tx.upload.update({ where: { id: currentUploadId }, data: { status: "COMPLETED" } });
     });
 

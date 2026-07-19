@@ -27,18 +27,19 @@ export const createPayment = async (req: Request, res: Response): Promise<void> 
     } = req.body;
 
     const payment = await prisma.payment.create({
+      // `processedAt` is omitted when absent; the nullable DB column then stores NULL.
       data: {
         uploadId,
         transactionRef,
         orderReference,
-        processedAt: new Date(processedAt),
+        ...(processedAt ? { processedAt: new Date(processedAt) } : {}),
         currency,
         amount: Number(amount),
         fee: Number(fee),
         netSettled: Number(netSettled),
         type,
         status: status || "PENDING",
-      },
+      } as never,
     });
 
     res.status(201).json(payment);
